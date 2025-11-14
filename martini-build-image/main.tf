@@ -102,15 +102,17 @@ resource "aws_codebuild_project" "martini_build_image" {
   environment {
     compute_type                = "BUILD_GENERAL1_MEDIUM"
     image                       = "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
-    type                        = "LINUX_CONTAINER"
+    type                        = "ARM_CONTAINER"
     privileged_mode             = true
     image_pull_credentials_type = "CODEBUILD"
 
+    # Passed for initial fallback (override by SSM)
     environment_variable {
       name  = "MARTINI_VERSION"
       value = var.martini_version
     }
-    
+
+    # Passed directly from Terraform outputs
     environment_variable {
       name  = "ECR_REPO_URI"
       value = module.ecr.ecr_repository_url
@@ -119,9 +121,9 @@ resource "aws_codebuild_project" "martini_build_image" {
     environment_variable {
       name  = "PARAMETER_NAME"
       value = module.ssm.ssm_parameter_name
-    }  
+    }
   }
-    
+
   source {
     type      = "CODEPIPELINE"
     buildspec = "../buildspecs/${var.pipeline_name}.yaml"
@@ -145,9 +147,13 @@ resource "aws_codepipeline" "martini_build_pipeline" {
     location = module.s3.artifact_bucket_name
     type     = "S3"
 
-    encryption_key {
-      id   = var.kms_key_arn
-      type = "KMS"
+    # KMS is optional — only added if provided
+    dynamic "encryption_key" {
+      for_each = var.kms_key_arn != null ? [1] : []
+      content {
+        id   = var.kms_key_arn
+        type = "KMS"
+      }
     }
   }
 

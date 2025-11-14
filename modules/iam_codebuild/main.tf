@@ -21,9 +21,7 @@ resource "aws_iam_role" "martini_codebuild_role" {
   tags               = merge(local.default_tags, var.tags)
 }
 
-# Inline policy - least-privilege
 data "aws_iam_policy_document" "codebuild_permissions" {
-  # --- CloudWatch Logs: scope to the specific project log group
   statement {
     sid     = "CloudWatchLogsAccess"
     actions = [
@@ -32,18 +30,15 @@ data "aws_iam_policy_document" "codebuild_permissions" {
       "logs:DescribeLogStreams"
     ]
     resources = [
-      # log stream ARNs live under the log group ARN with :*
       "${var.project_log_group_arn}:*"
     ]
   }
 
-  # --- S3: artifacts in a specific bucket (optionally path-scoped for objects)
   statement {
     sid     = "S3ListBucketArtifacts"
     actions = ["s3:ListBucket"]
     resources = [var.artifact_bucket_arn]
 
-    # Optionally restrict the list operation to a prefix if provided
     dynamic "condition" {
       for_each = var.artifact_object_prefix == null ? [] : [1]
       content {
@@ -59,12 +54,11 @@ data "aws_iam_policy_document" "codebuild_permissions" {
     actions = [
       "s3:GetObject",
       "s3:PutObject",
-      "s3:DeleteObject" # Include if your build produces or cleans up objects; harmless if unused
+      "s3:DeleteObject" 
     ]
     resources = var.artifact_object_prefix == null ? ["${var.artifact_bucket_arn}/*"] : ["${var.artifact_bucket_arn}/${var.artifact_object_prefix}*"]
   }
 
-  # --- SSM: read a single SecureString parameter used by the build
   statement {
     sid     = "SSMReadParameter"
     actions = [
@@ -75,7 +69,6 @@ data "aws_iam_policy_document" "codebuild_permissions" {
     resources = [var.ssm_parameter_arn]
   }
 
-  # --- Optional: ECR (only when building/pushing images)
   dynamic "statement" {
     for_each = var.ecr_repo_arn == null ? [] : [1]
     content {
@@ -93,7 +86,6 @@ data "aws_iam_policy_document" "codebuild_permissions" {
     }
   }
 
-  # ECR auth token must be resource "*"
   dynamic "statement" {
     for_each = var.ecr_repo_arn == null ? [] : [1]
     content {
@@ -103,7 +95,6 @@ data "aws_iam_policy_document" "codebuild_permissions" {
     }
   }
 
-  # --- Optional: KMS decrypt for SSE-KMS S3/SSM artifacts
   dynamic "statement" {
     for_each = length(var.kms_key_arns) == 0 ? [] : [1]
     content {

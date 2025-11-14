@@ -4,10 +4,10 @@ locals {
   }
 }
 
-# Trust relationship for CodePipeline
 data "aws_iam_policy_document" "assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
+
     principals {
       type        = "Service"
       identifiers = ["codepipeline.amazonaws.com"]
@@ -21,16 +21,14 @@ resource "aws_iam_role" "martini_codepipeline_role" {
   tags               = merge(local.default_tags, var.tags)
 }
 
-# Inline policy with scoped privileges
 data "aws_iam_policy_document" "codepipeline_permissions" {
-  # --- CodeStar Connection: use a single connection ARN for GitHub
+
   statement {
     sid       = "CodeStarConnection"
     actions   = ["codestar-connections:UseConnection"]
     resources = [var.codestar_connection_arn]
   }
 
-  # --- S3: read/write artifacts in the designated artifact bucket
   statement {
     sid     = "S3ArtifactAccess"
     actions = [
@@ -45,14 +43,21 @@ data "aws_iam_policy_document" "codepipeline_permissions" {
     ]
   }
 
-  # --- PassRole: allow CodePipeline to invoke CodeBuild
   statement {
     sid       = "PassRoleToCodeBuild"
     actions   = ["iam:PassRole"]
     resources = [var.codebuild_role_arn]
   }
 
-  # --- Optional: KMS decrypt for artifact encryption
+  statement {
+    sid     = "CodeBuildStartBuild"
+    actions = [
+      "codebuild:StartBuild",
+      "codebuild:BatchGetBuilds"
+    ]
+    resources = ["*"]
+  }
+
   dynamic "statement" {
     for_each = length(var.kms_key_arns) == 0 ? [] : [1]
     content {
@@ -62,7 +67,6 @@ data "aws_iam_policy_document" "codepipeline_permissions" {
     }
   }
 
-  # --- CloudWatch Events (optional basic event publishing)
   statement {
     sid       = "CloudWatchEvents"
     actions   = [
