@@ -126,7 +126,7 @@ resource "aws_codebuild_project" "martini_build_image" {
 
   source {
     type      = "CODEPIPELINE"
-    buildspec = "../buildspecs/${var.pipeline_name}.yaml"
+    buildspec = "buildspecs/${var.pipeline_name}.yaml"
   }
 
   logs_config {
