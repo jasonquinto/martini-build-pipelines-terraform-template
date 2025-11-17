@@ -1,7 +1,8 @@
-# Define shared hook settings globally (outside repos)
-default_hook_settings: &default_hook
-  always_run: true
-  pass_filenames: false
+ci:
+  skip: []
+  default_hook_settings: &default_hook
+    always_run: true
+    pass_filenames: false
 
 repos:
   - repo: https://github.com/antonbabenko/pre-commit-terraform
