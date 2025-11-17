@@ -20,5 +20,8 @@ repos:
       - id: terraform_checkov
         files: ^terraform/.*
         args:
+          - --args=--directory=terraform
           - --args=--config-file=.checkov.yaml
-          - --args=--quiet
+          - --args=--output=cli
+          - --args=--quiet=false
+          - --args=--merge-results=true
