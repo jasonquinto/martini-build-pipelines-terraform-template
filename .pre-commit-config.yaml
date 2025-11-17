@@ -1,6 +1,8 @@
 repos:
   - repo: https://github.com/antonbabenko/pre-commit-terraform
-    rev: v1.83.6
+    rev: v1.103.0
+    always_run: true
+    pass_filenames: false
     hooks:
       - id: terraform_fmt
         files: ^terraform/.*\.tf$
@@ -22,6 +24,4 @@ repos:
         args:
           - --args=--directory=terraform
           - --args=--config-file=.checkov.yaml
-          - --args=--output=json
-        always_run: true
-        pass_filenames: false
+
