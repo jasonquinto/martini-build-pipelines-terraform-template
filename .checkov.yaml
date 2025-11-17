@@ -1,0 +1,20 @@
+quiet: true
+compact: true
+summary-position: top
+
+directory:
+  - ./terraform
+
+framework:
+  - terraform
+
+download-external-modules: false
+evaluate-variables: true
+
+skip-check:
+  - CKV_TF_1   # Stable Terraform version not enforced
+  - CKV_TF_2   # Terraform required_providers not pinned exactly
+
+mask: []
+secrets-scan-file-type: []
+block-list-secret-scan: []
