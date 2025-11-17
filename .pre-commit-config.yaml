@@ -1,27 +1,16 @@
 repos:
-  # ---------------------------------------------------------
-  # Terraform formatting, validation, docs, checkov scanning
-  # ---------------------------------------------------------
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.83.6
     hooks:
-
-      # Format all Terraform files
       - id: terraform_fmt
-
-      # Validate Terraform config (init with read-only lockfile)
       - id: terraform_validate
         args:
           - --init-args=-lockfile=readonly
           - --args=-json
           - --args=-no-color
-
-      # Automatically update module/variable documentation
       - id: terraform_docs
         args:
           - --hook-config=--add-to-existing-file=true
-
-      # Checkov security scanner for Terraform
       - id: terraform_checkov
         args:
           - --args=--directory=terraform
