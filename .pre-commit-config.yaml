@@ -4,6 +4,8 @@ repos:
     hooks:
       - id: terraform_fmt
         files: ^terraform/.*\.tf$
+        always_run: true
+        pass_filenames: false
 
       - id: terraform_validate
         files: ^terraform/.*\.tf$
@@ -11,15 +13,20 @@ repos:
           - --init-args=-lockfile=readonly
           - --args=-json
           - --args=-no-color
+        always_run: true
+        pass_filenames: false
 
       - id: terraform_docs
         files: ^terraform/.*
         args:
           - --hook-config=--add-to-existing-file=true
+        always_run: true
+        pass_filenames: false
 
       - id: terraform_checkov
         files: ^terraform/.*
         args:
-          - --args=--directory=terraform
           - --args=--config-file=.checkov.yaml
           - --args=--quiet
+        always_run: true
+        pass_filenames: false
