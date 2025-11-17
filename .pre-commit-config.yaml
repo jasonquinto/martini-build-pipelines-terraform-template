@@ -1,12 +1,11 @@
+# Define shared hook settings globally (outside repos)
+default_hook_settings: &default_hook
+  always_run: true
+  pass_filenames: false
+
 repos:
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.103.0
-
-    # Define defaults OUTSIDE hook list
-    default_hook_settings: &default_hook
-      always_run: true
-      pass_filenames: false
-
     hooks:
       - id: terraform_fmt
         <<: *default_hook
