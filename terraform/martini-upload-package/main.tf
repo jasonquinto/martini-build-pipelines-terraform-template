@@ -32,7 +32,7 @@ locals {
 }
 
 module "cloudwatch" {
-  source = "../../modules/cloudwatch"
+  source = "../modules/cloudwatch"
 
   project_log_group_name  = local.project_log_group_name
   pipeline_log_group_name = local.pipeline_log_group_name
@@ -42,7 +42,7 @@ module "cloudwatch" {
 }
 
 module "s3" {
-  source        = "../../modules/s3"
+  source        = "../modules/s3"
   bucket_name   = local.artifact_bucket_name
   kms_key_arn   = var.kms_key_arn
   force_destroy = var.artifact_bucket_force_destroy
@@ -50,7 +50,7 @@ module "s3" {
 }
 
 module "ssm" {
-  source                = "../../modules/ssm"
+  source                = "../modules/ssm"
   parameter_name        = "/martini/${local.environment}/${local.pipeline_name}"
   parameter_description = "Martini upload package configuration"
   parameter_value = jsonencode({
@@ -65,7 +65,7 @@ module "ssm" {
 }
 
 module "iam_codebuild" {
-  source                = "../../modules/iam_codebuild"
+  source                = "../modules/iam_codebuild"
   role_name             = "${local.pipeline_name}-codebuild-role-${local.environment}"
   project_log_group_arn = module.cloudwatch.project_log_group_arn
   artifact_bucket_arn   = module.s3.artifact_bucket_arn
@@ -77,7 +77,7 @@ module "iam_codebuild" {
 }
 
 module "iam_codepipeline" {
-  source                  = "../../modules/iam_codepipeline"
+  source                  = "../modules/iam_codepipeline"
   role_name               = "${local.pipeline_name}-codepipeline-role-${local.environment}"
   artifact_bucket_arn     = module.s3.artifact_bucket_arn
   codebuild_role_arn      = module.iam_codebuild.codebuild_role_arn
