@@ -25,3 +25,5 @@ repos:
           - --args=--output=cli
           - --args=--quiet=false
           - --args=--merge-results=true
+        always_run: true
+        pass_filenames: false
