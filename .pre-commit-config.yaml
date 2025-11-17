@@ -23,7 +23,6 @@ repos:
           - --args=--directory=terraform
           - --args=--config-file=.checkov.yaml
           - --args=--output=cli
-          - --args=--quiet=false
           - --args=--merge-results=true
         always_run: true
         pass_filenames: false
