@@ -17,6 +17,7 @@ crash.*.log
 *.tfvars
 *.tfvars.json
 terraform.tfvars
+example.tfvars
 
 # Allow safe, non-sensitive examples
 !example.tfvars
