@@ -12,8 +12,7 @@ download-external-modules: false
 evaluate-variables: true
 
 skip-check:
-  - CKV_TF_1   # Stable Terraform version not enforced
-  - CKV_TF_2   # Terraform required_providers not pinned exactly
+  - CKV_TF_1
 
 mask: []
 secrets-scan-file-type: []
