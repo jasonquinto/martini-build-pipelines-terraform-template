@@ -1,19 +1,15 @@
-ci:
-  skip: []
-  default_hook_settings: &default_hook
-    always_run: true
-    pass_filenames: false
-
 repos:
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.103.0
     hooks:
       - id: terraform_fmt
-        <<: *default_hook
+        always_run: true
+        pass_filenames: false
         files: ^terraform/.*\.tf$
 
       - id: terraform_validate
-        <<: *default_hook
+        always_run: true
+        pass_filenames: false
         files: ^terraform/.*\.tf$
         args:
           - --init-args=-lockfile=readonly
@@ -21,60 +17,64 @@ repos:
           - --args=-no-color
 
       - id: terraform_docs
-        <<: *default_hook
+        always_run: true
+        pass_filenames: false
         files: ^terraform/.*
         args:
           - --hook-config=--add-to-existing-file=true
 
       - id: terraform_checkov
-        <<: *default_hook
+        always_run: true
+        pass_filenames: false
         files: ^terraform/.*
         args:
           - --args=--directory=terraform
           - --args=--config-file=.checkov.yaml
           - --args=--quiet
 
-  - repo: https://github.com/adrienverge/yamllint
-    rev: v1.35.1
+  - repo: local
     hooks:
-      - id: yamllint
+      - id: yamllint-local
+        name: yamllint (local)
+        entry: yamllint
+        language: system
         pass_filenames: true
         always_run: false
         files: \.ya?ml$
         args:
           - --config-file=.yamllint
 
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.9.0.6
+  - repo: local
     hooks:
-      - id: shellcheck
+      - id: shellcheck-local
+        name: shellcheck (local)
+        entry: shellcheck
+        language: system
         pass_filenames: true
-        always_run: false
-        args: ["--severity=warning"]
+        files: \.sh$
+        types_or: [shell]
+        stages: [commit]
+        args:
+          - --severity=warning
 
-  - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.7.0-1
+  - repo: local
     hooks:
-      - id: shfmt
+      - id: shfmt-local
+        name: shfmt (local)
+        entry: shfmt
+        language: system
         pass_filenames: true
-        always_run: false
+        files: \.sh$
+        types_or: [shell]
+        stages: [commit]
         args:
           - "-w"
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: end-of-file-fixer
-        <<: *default_hook
-
       - id: trailing-whitespace
-        <<: *default_hook
-
       - id: check-yaml
-        <<: *default_hook
-
       - id: check-added-large-files
-        <<: *default_hook
-
       - id: check-merge-conflict
-        <<: *default_hook
