@@ -3,9 +3,7 @@ name: Pre-Commit CI
 
 on:
   push:
-    branches:
-      - main
-      - development
+    branches: [main, development]
   pull_request: {}
 
 jobs:
