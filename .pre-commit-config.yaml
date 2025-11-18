@@ -1,4 +1,5 @@
 repos:
+  # Terraform Hooks
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.103.0
     hooks:
@@ -32,43 +33,25 @@ repos:
           - --args=--config-file=.checkov.yaml
           - --args=--quiet
 
-  - repo: local
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.33.0
     hooks:
-      - id: yamllint-local
-        name: yamllint (local)
-        entry: yamllint
-        language: system
-        pass_filenames: true
-        always_run: false
-        files: \.ya?ml$
-        args:
-          - --config-file=.yamllint
+      - id: yamllint
+        args: ["--config-file=.yamllint"]
 
-  - repo: local
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.11.0
     hooks:
-      - id: shellcheck-local
-        name: shellcheck (local)
-        entry: shellcheck
-        language: system
-        pass_filenames: true
+      - id: shellcheck
         files: \.sh$
-        types_or: [shell]
-        stages: [commit]
-        args:
-          - --severity=warning
+        args: ["--severity=warning"]
 
-  - repo: local
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.12.0-2
     hooks:
-      - id: shfmt-local
-        name: shfmt (local)
-        entry: shfmt
-        language: system
-        pass_filenames: true
+      - id: shfmt
         files: \.sh$
-        types_or: [shell]
-        stages: [commit]
-        args:
-          - "-w"
+        args: ["-w"]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
