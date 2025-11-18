@@ -1,24 +1,54 @@
 ---
-nextends: default
+name: Pre-Commit CI
 
-rules:
-  indentation:
-    indent-sequences: consistent
-    spaces: 2
+on:
+  push:
+    branches:
+      - main
+      - development
+  pull_request: {}
 
-  line-length:
-    max: 120
-    level: warning
+jobs:
+  pre-commit:
+    name: Pre-Commit Checks
+    runs-on: ubuntu-latest
 
-  trailing-spaces:
-    level: warning
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-  empty-lines:
-    max: 2
+      - name: Cache Pre-commit Hooks
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ runner.os }}-precommit-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-precommit-
 
-  truthy:
-    level: warning
-    allowed-values: ['true', 'false', 'yes', 'no']
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-  comments-indentation:
-    level: warning
+      - name: Install Pre-commit
+        run: pip install pre-commit
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.6"
+          terraform_wrapper: false
+
+      - name: Install terraform-docs
+        uses: terraform-docs/gh-actions@v1.0.0
+        with:
+          version: v0.19.0
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y yamllint shellcheck shfmt
+          pip install checkov
+
+      - name: Run Pre-Commit Hooks
+        run: pre-commit run --all-files --show-diff-on-failure
