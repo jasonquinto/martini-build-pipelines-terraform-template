@@ -1,42 +1,23 @@
----
-name: Pre-Commit CI
+extends: default
 
-on:
-  push:
-    branches:
-      - main
-      - development
-  pull_request: {}
+rules:
+  indentation:
+    indent-sequences: consistent
+    spaces: 2
 
-jobs:
-  pre-commit:
-    name: Pre-Commit Checks
-    runs-on: ubuntu-latest
+  line-length:
+    max: 120
+    level: warning
 
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+  trailing-spaces:
+    level: warning
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+  empty-lines:
+    max: 2
 
-      - name: Install Pre-commit
-        run: pip install pre-commit
+  truthy:
+    level: warning
+    allowed-values: ['true', 'false', 'yes', 'no']
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.6.6"
-          terraform_wrapper: false
-
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y yamllint shellcheck shfmt
-          pip install checkov
-          pip install terraform-docs
-
-      - name: Run Pre-Commit Hooks
-        run: pre-commit run --all-files --show-diff-on-failure
+  comments-indentation:
+    level: warning
