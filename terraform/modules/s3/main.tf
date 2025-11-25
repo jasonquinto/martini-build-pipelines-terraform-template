@@ -4,12 +4,12 @@ locals {
   }
 }
 
-resource "aws_s3_bucket" "martini_artifacts" {
+resource "aws_s3_bucket" "artifacts" {
   bucket = var.bucket_name
   tags   = merge(local.default_tags, var.tags)
 }
 
-resource "aws_s3_bucket_versioning" "martini_s3_versioning" {
+resource "aws_s3_bucket_versioning" "versioning" {
   bucket = aws_s3_bucket.martini_artifacts.id
 
   versioning_configuration {
@@ -17,8 +17,8 @@ resource "aws_s3_bucket_versioning" "martini_s3_versioning" {
   }
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "martini_s3_encryption" {
-  bucket = aws_s3_bucket.martini_artifacts.id
+resource "aws_s3_bucket_server_side_encryption_configuration" "encryption" {
+  bucket = aws_s3_bucket.artifacts.id
 
   rule {
     apply_server_side_encryption_by_default {

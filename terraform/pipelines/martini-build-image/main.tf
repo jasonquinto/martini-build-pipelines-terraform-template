@@ -14,8 +14,16 @@ provider "aws" {
 }
 
 locals {
-  environment   = var.environment
-  pipeline_name = var.pipeline_name
+  environment             = var.environment
+  pipeline_name           = var.pipeline_name
+  resource_prefix         = "${local.environment}-${local.pipeline_name}"
+  project_log_group_name  = "/aws/codebuild/${local.resource_prefix}"
+  pipeline_log_group_name = "/aws/codepipeline/${local.resource_prefix}"
+  artifact_bucket_name    = "${local.resource_prefix}-artifacts"
+  codebuild_role_name     = "${local.resource_prefix}-codebuild-role"
+  codepipeline_role_name  = "${local.resource_prefix}-codepipeline-role"
+  ecr_repo_name           = "${local.resource_prefix}"
+  ssm_parameter_name      = "/martini/${local.environment}/${local.pipeline_name}"
 
   common_tags = merge(
     var.tags,
@@ -25,10 +33,6 @@ locals {
       Owner       = "Lonti"
     }
   )
-
-  project_log_group_name  = "/aws/codebuild/${local.pipeline_name}-${local.environment}"
-  pipeline_log_group_name = "/aws/codepipeline/${local.pipeline_name}-${local.environment}"
-  artifact_bucket_name    = "${local.pipeline_name}-${local.environment}-artifacts"
 }
 
 module "cloudwatch" {
@@ -42,43 +46,53 @@ module "cloudwatch" {
 }
 
 module "s3" {
-  source        = "../modules/s3"
-  bucket_name   = local.artifact_bucket_name
-  kms_key_arn   = var.kms_key_arn
-  force_destroy = var.artifact_bucket_force_destroy
-  tags          = local.common_tags
+  source = "../modules/s3"
+
+  bucket_name = local.artifact_bucket_name
+  kms_key_arn = var.kms_key_arn
+  tags        = local.common_tags
+}
+
+module "ecr" {
+  source = "../modules/ecr"
+
+  repository_name = local.ecr_repo_name
+  kms_key_arn     = var.kms_key_arn
+  scan_on_push    = true
+  tags            = local.common_tags
 }
 
 module "ssm" {
-  source                = "../modules/ssm"
-  parameter_name        = "/martini/${local.environment}/${local.pipeline_name}"
-  parameter_description = "Martini upload package configuration"
+  source = "../modules/ssm"
+
+  parameter_name        = local.ssm_parameter_name
+  parameter_description = "Martini build image parameter"
+
   parameter_value = jsonencode({
-    base_url              = var.base_url
-    martini_access_token  = var.martini_access_token
-    async_upload          = var.async_upload
-    success_check_delay   = var.success_check_delay
-    success_check_timeout = var.success_check_timeout
+    martini_version = var.martini_version
+    ecr_repo_name   = module.ecr.ecr_repository_name
   })
+
   kms_key_arn = var.kms_key_arn
   tags        = local.common_tags
 }
 
 module "iam_codebuild" {
-  source                = "../modules/iam_codebuild"
-  role_name             = "${local.pipeline_name}-codebuild-role-${local.environment}"
+  source = "../modules/iam_codebuild"
+
+  role_name             = local.codebuild_role_name
   project_log_group_arn = module.cloudwatch.project_log_group_arn
   artifact_bucket_arn   = module.s3.artifact_bucket_arn
   ssm_parameter_arn     = module.ssm.ssm_parameter_arn
-  # No ECR access for this pipeline
-  ecr_repo_arn          = null
+  ecr_repo_arn          = module.ecr.ecr_repository_arn
   kms_key_arns          = var.kms_key_arn != null ? [var.kms_key_arn] : []
   tags                  = local.common_tags
 }
 
 module "iam_codepipeline" {
-  source                  = "../modules/iam_codepipeline"
-  role_name               = "${local.pipeline_name}-codepipeline-role-${local.environment}"
+  source = "../modules/iam_codepipeline"
+
+  role_name               = local.codepipeline_role_name
   artifact_bucket_arn     = module.s3.artifact_bucket_arn
   codebuild_role_arn      = module.iam_codebuild.codebuild_role_arn
   codestar_connection_arn = var.codestar_connection_arn
@@ -86,9 +100,9 @@ module "iam_codepipeline" {
   tags                    = local.common_tags
 }
 
-resource "aws_codebuild_project" "martini_upload_package" {
-  name          = "${local.pipeline_name}-${local.environment}"
-  description   = "Uploads Martini packages to a Martini runtime server."
+resource "aws_codebuild_project" "martini_build_image" {
+  name          = local.resource_prefix
+  description   = "Builds Martini Docker images (ARM64) and pushes to ECR."
   service_role  = module.iam_codebuild.codebuild_role_arn
   build_timeout = 30
 
@@ -99,43 +113,43 @@ resource "aws_codebuild_project" "martini_upload_package" {
   environment {
     compute_type                = "BUILD_GENERAL1_MEDIUM"
     image                       = "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
-    type                        = "LINUX_CONTAINER"
-    privileged_mode             = false
+    type                        = "ARM_CONTAINER"
+    privileged_mode             = true
     image_pull_credentials_type = "CODEBUILD"
 
     environment_variable {
-      name  = "MARTINI_BASE_URL"
-      value = var.base_url
+      name  = "MARTINI_VERSION"
+      value = var.martini_version
+    }
+
+    environment_variable {
+      name  = "ECR_REPO_URI"
+      value = module.ecr.ecr_repository_url
     }
 
     environment_variable {
       name  = "PARAMETER_NAME"
       value = module.ssm.ssm_parameter_name
     }
-
-    environment_variable {
-      name  = "ASYNC_UPLOAD"
-      value = tostring(var.async_upload)
-    }
   }
 
   source {
     type      = "CODEPIPELINE"
-    buildspec = "buildspecs/${var.pipeline_name}.yaml"
+    buildspec = var.buildspec_filename
   }
 
   logs_config {
     cloudwatch_logs {
       group_name  = module.cloudwatch.project_log_group_name
-      stream_name = "upload"
+      stream_name = "build"
     }
   }
 
   tags = local.common_tags
 }
 
-resource "aws_codepipeline" "martini_upload_pipeline" {
-  name     = "${local.pipeline_name}-${local.environment}"
+resource "aws_codepipeline" "martini_build_pipeline" {
+  name     = local.resource_prefix
   role_arn = module.iam_codepipeline.codepipeline_role_arn
 
   artifact_store {
@@ -153,7 +167,6 @@ resource "aws_codepipeline" "martini_upload_pipeline" {
 
   stage {
     name = "Source"
-
     action {
       name             = "Source"
       category         = "Source"
@@ -171,19 +184,18 @@ resource "aws_codepipeline" "martini_upload_pipeline" {
   }
 
   stage {
-    name = "Upload"
-
+    name = "Build"
     action {
-      name             = "UploadPackages"
+      name             = "BuildImage"
       category         = "Build"
       owner            = "AWS"
       provider         = "CodeBuild"
       version          = "1"
       input_artifacts  = ["source_output"]
-      output_artifacts = ["upload_output"]
+      output_artifacts = ["build_output"]
 
       configuration = {
-        ProjectName = aws_codebuild_project.martini_upload_package.name
+        ProjectName = aws_codebuild_project.martini_build_image.name
       }
     }
   }

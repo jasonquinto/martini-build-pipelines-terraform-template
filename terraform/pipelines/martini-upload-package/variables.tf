@@ -1,5 +1,5 @@
 variable "pipeline_name" {
-  description = "Canonical name for this pipeline."
+  description = "Pipeline name"
   type        = string
   default     = "martini-upload-package"
 }
@@ -26,10 +26,10 @@ variable "branch_name" {
   default     = "main"
 }
 
-variable "buildspec_file" {
+variable "buildspec_filename" {
   description = "The buildspec file for the Codebuild project."
   type        = string
-  default     = "../buildspecs/martini-upload-package.yaml"
+  default     = "terraform/buildspecs/martini-upload-package.yaml"
 }
 
 variable "codestar_connection_arn" {

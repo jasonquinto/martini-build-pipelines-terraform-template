@@ -7,6 +7,7 @@ locals {
 data "aws_iam_policy_document" "assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
+
     principals {
       type        = "Service"
       identifiers = ["codebuild.amazonaws.com"]
@@ -14,7 +15,7 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
-resource "aws_iam_role" "martini_codebuild_role" {
+resource "aws_iam_role" "codebuild_role" {
   name               = var.role_name
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
   tags               = merge(local.default_tags, var.tags)
@@ -35,24 +36,18 @@ data "aws_iam_policy_document" "codebuild_permissions" {
   }
 
   statement {
-    sid     = "S3ArtifactAccess"
-    actions = [
-      "s3:ListBucket"
-    ]
-    resources = [
-      var.artifact_bucket_arn
-    ]
+    sid     = "S3ListBucket"
+    actions = ["s3:ListBucket"]
+    resources = [var.artifact_bucket_arn]
   }
 
   statement {
-    sid     = "S3ArtifactObjects"
+    sid     = "S3ObjectAccess"
     actions = [
       "s3:GetObject",
-      "s3:PutObject"
+      "s3:PutObject",
     ]
-    resources = [
-      "${var.artifact_bucket_arn}/*"
-    ]
+    resources = ["${var.artifact_bucket_arn}/*"]
   }
 
   statement {
@@ -61,9 +56,17 @@ data "aws_iam_policy_document" "codebuild_permissions" {
       "ssm:GetParameter",
       "ssm:GetParameters"
     ]
-    resources = [
-      var.ssm_parameter_arn
-    ]
+    resources = [var.ssm_parameter_arn]
+  }
+
+  dynamic "statement" {
+    for_each = var.ecr_repo_arn == null ? [] : [1]
+
+    content {
+      sid       = "ECRGetAuthToken"
+      actions   = ["ecr:GetAuthorizationToken"]
+      resources = ["*"]
+    }
   }
 
   dynamic "statement" {
@@ -72,20 +75,15 @@ data "aws_iam_policy_document" "codebuild_permissions" {
     content {
       sid = "ECRPushAccess"
       actions = [
-        "ecr:GetAuthorizationToken",
         "ecr:BatchCheckLayerAvailability",
         "ecr:GetDownloadUrlForLayer",
         "ecr:BatchGetImage",
         "ecr:InitiateLayerUpload",
         "ecr:UploadLayerPart",
         "ecr:CompleteLayerUpload",
-        "ecr:PutImage",
-        "ecr:DescribeRepositories"
+        "ecr:PutImage"
       ]
-      resources = [
-        var.ecr_repo_arn,
-        "${var.ecr_repo_arn}:*"
-      ]
+      resources = [var.ecr_repo_arn]
     }
   }
 
@@ -100,8 +98,8 @@ data "aws_iam_policy_document" "codebuild_permissions" {
   }
 }
 
-resource "aws_iam_role_policy" "martini_codebuild_inline" {
-  name   = "martini-codebuild-policy"
-  role   = aws_iam_role.martini_codebuild_role.id
+resource "aws_iam_role_policy" "codebuild_inline" {
+  name   = "codebuild-inline-policy"
+  role   = aws_iam_role.codebuild_role.id
   policy = data.aws_iam_policy_document.codebuild_permissions.json
 }

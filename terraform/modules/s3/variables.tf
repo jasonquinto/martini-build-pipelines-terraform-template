@@ -1,5 +1,5 @@
 variable "bucket_name" {
-  description = "Name of the S3 bucket used for CodePipeline and CodeBuild artifacts."
+  description = "S3 artifact bucket name."
   type        = string
 }
 
@@ -10,7 +10,7 @@ variable "kms_key_arn" {
 }
 
 variable "tags" {
-  description = "Key-value map of common tags applied to the S3 artifact bucket. Merged with default S3 tags."
+  description = "Tags applied to the S3 bucket (merged with Service=S3)."
   type        = map(string)
   default     = {}
 }

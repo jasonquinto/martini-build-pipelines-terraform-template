@@ -4,7 +4,7 @@ locals {
   }
 }
 
-resource "aws_ssm_parameter" "martini_ssm_parameter" {
+resource "aws_ssm_parameter" "ssm_parameter" {
   name        = var.parameter_name
   description = var.parameter_description
   type        = "SecureString"

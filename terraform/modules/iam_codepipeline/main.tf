@@ -15,13 +15,15 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
-resource "aws_iam_role" "martini_codepipeline_role" {
+resource "aws_iam_role" "codepipeline_role" {
   name               = var.role_name
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
   tags               = merge(local.default_tags, var.tags)
 }
 
 data "aws_iam_policy_document" "codepipeline_permissions" {
+
+  # CodeStar — required for GitHub source access
   statement {
     sid       = "CodeStarConnection"
     actions   = ["codestar-connections:UseConnection"]
@@ -29,22 +31,19 @@ data "aws_iam_policy_document" "codepipeline_permissions" {
   }
 
   statement {
-    sid     = "S3ListBucket"
-    actions = ["s3:ListBucket"]
-    resources = [
-      var.artifact_bucket_arn
-    ]
+    sid       = "S3ListBucket"
+    actions   = ["s3:ListBucket"]
+    resources = [var.artifact_bucket_arn]
   }
 
   statement {
-    sid     = "S3ArtifactObjects"
-    actions = [
+    sid       = "S3ArtifactObjects"
+    actions   = [
       "s3:GetObject",
-      "s3:PutObject"
+      "s3:PutObject",
+      "s3:DeleteObject"
     ]
-    resources = [
-      "${var.artifact_bucket_arn}/*"
-    ]
+    resources = ["${var.artifact_bucket_arn}/*"]
   }
 
   statement {
@@ -54,8 +53,8 @@ data "aws_iam_policy_document" "codepipeline_permissions" {
   }
 
   statement {
-    sid = "CodeBuildIntegration"
-    actions = [
+    sid       = "CodeBuildIntegration"
+    actions   = [
       "codebuild:StartBuild",
       "codebuild:BatchGetBuilds"
     ]
@@ -64,6 +63,7 @@ data "aws_iam_policy_document" "codepipeline_permissions" {
 
   dynamic "statement" {
     for_each = length(var.kms_key_arns) == 0 ? [] : [1]
+
     content {
       sid       = "KMSDecrypt"
       actions   = ["kms:Decrypt"]
@@ -84,8 +84,8 @@ data "aws_iam_policy_document" "codepipeline_permissions" {
   }
 }
 
-resource "aws_iam_role_policy" "martini_codepipeline_inline" {
-  name   = "martini-codepipeline-policy"
-  role   = aws_iam_role.martini_codepipeline_role.id
+resource "aws_iam_role_policy" "codepipeline_inline" {
+  name   = "codepipeline-inline-policy"
+  role   = aws_iam_role.codepipeline_role.id
   policy = data.aws_iam_policy_document.codepipeline_permissions.json
 }

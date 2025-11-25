@@ -1,5 +1,5 @@
 variable "pipeline_name" {
-  description = "Canonical name for this pipeline. Used for naming resources and buildspec lookup."
+  description = "Pipeline name, used for naming resources."
   type        = string
   default     = "martini-build-image"
 }
@@ -26,10 +26,10 @@ variable "branch_name" {
   default     = "main"
 }
 
-variable "buildspec_file" {
+variable "buildspec_filename" {
   description = "The buildspec file for the Codebuild project."
   type        = string
-  default     = "../buildspecs/martini-build-image.yaml"
+  default     = "terraform/buildspecs/martini-build-image.yaml"
 }
 
 variable "codestar_connection_arn" {
@@ -56,7 +56,7 @@ variable "kms_key_arn" {
 }
 
 variable "tags" {
-  description = "Map of custom tags applied to all resources. Merged with Project, Environment, and Owner."
+  description = "Map of additional tags applied to all resources."
   type        = map(string)
   default     = {}
 }

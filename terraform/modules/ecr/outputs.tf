@@ -1,14 +1,11 @@
 output "ecr_repository_name" {
-  description = "Name of the ECR repository."
-  value       = aws_ecr_repository.martini_ecr_repository.name
+  value = aws_ecr_repository.ecr_repo.name
 }
 
 output "ecr_repository_arn" {
-  description = "ARN of the ECR repository."
-  value       = aws_ecr_repository.martini_ecr_repository.arn
+  value = aws_ecr_repository.ecr_repo.arn
 }
 
 output "ecr_repository_url" {
-  description = "URL of the ECR repository (registry/repo path)."
-  value       = aws_ecr_repository.martini_ecr_repository.repository_url
+  value = aws_ecr_repository.ecr_repo.repository_url
 }

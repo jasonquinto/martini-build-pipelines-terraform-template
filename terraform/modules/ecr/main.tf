@@ -4,9 +4,9 @@ locals {
   }
 }
 
-resource "aws_ecr_repository" "martini_ecr_repository" {
-  name = var.repository_name
-  image_tag_mutability = "MUTABLE"
+resource "aws_ecr_repository" "ecr_repo" {
+  name                  = var.repository_name
+  image_tag_mutability  = "MUTABLE"
 
   encryption_configuration {
     encryption_type = var.kms_key_arn != null ? "KMS" : "AES256"

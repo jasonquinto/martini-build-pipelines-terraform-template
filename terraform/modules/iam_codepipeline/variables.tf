@@ -1,20 +1,20 @@
 variable "role_name" {
-  description = "Name of the IAM role for CodePipeline."
+  description = "IAM role name for CodePipeline."
   type        = string
 }
 
 variable "artifact_bucket_arn" {
-  description = "ARN of the S3 artifact bucket used by the pipeline."
+  description = "S3 artifact bucket arn used by the pipeline."
   type        = string
 }
 
 variable "codebuild_role_arn" {
-  description = "ARN of the IAM role used by CodeBuild. Required for PassRole."
+  description = "IAM role arn used by CodeBuild. Required for PassRole."
   type        = string
 }
 
 variable "codestar_connection_arn" {
-  description = "ARN of the CodeStar Connection used by CodePipeline to connect to GitHub."
+  description = "CodeStar Connection arn used by CodePipeline to connect to GitHub."
   type        = string
 }
 
@@ -25,7 +25,7 @@ variable "kms_key_arns" {
 }
 
 variable "tags" {
-  description = "Key-value map of common tags applied to the IAM role. Merged with default CodePipeline tag."
+  description = "Tags applied to the S3 bucket (merged with Service=Codepipeline)."
   type        = map(string)
   default     = {}
 }

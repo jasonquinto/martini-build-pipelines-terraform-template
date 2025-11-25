@@ -1,5 +1,5 @@
 variable "repository_name" {
-  description = "Name of the ECR repository."
+  description = "ECR repository name."
   type        = string
 }
 
@@ -16,7 +16,7 @@ variable "scan_on_push" {
 }
 
 variable "tags" {
-  description = "Key-value map of tags applied to the repository. Merged with default Service = 'ECR' tag."
+  description = "Tags applied to the S3 bucket (merged with Service=ECR)."
   type        = map(string)
   default     = {}
 }

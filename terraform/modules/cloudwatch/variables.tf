@@ -1,10 +1,10 @@
 variable "project_log_group_name" {
-  description = "Name of the CloudWatch log group for the CodeBuild project."
+  description = "CloudWatch Log Group name for CodeBuild."
   type        = string
 }
 
 variable "pipeline_log_group_name" {
-  description = "Name of the CloudWatch log group for the CodePipeline."
+  description = "CloudWatch Log Group name for CodePipeline."
   type        = string
 }
 
@@ -21,7 +21,7 @@ variable "kms_key_arn" {
 }
 
 variable "tags" {
-  description = "Key-value map of common tags applied to the CloudWatch log groups. Merged with default CloudWatch tags."
+  description = "Tags applied to the S3 bucket (merged with Service=Cloudwatch)."
   type        = map(string)
   default     = {}
 }

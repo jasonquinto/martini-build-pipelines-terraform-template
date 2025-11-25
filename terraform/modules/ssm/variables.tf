@@ -1,18 +1,18 @@
 variable "parameter_name" {
-  description = "Name for the SSM parameter."
-  type = string
+  description = "SSM parameter Name."
+  type        = string
 }
 
 variable "parameter_description" {
-  description = "Description of the SSM parameter to provide context about its purpose."
+  description = "SSM parameter description."
   type        = string
   default     = "Martini pipeline configuration parameter."
 }
 
 variable "parameter_value" {
-  description = "The value to store in the SSM parameter. Should be JSON-encoded."
-  type      = string
-  sensitive = true
+  description = "The value to store in the SSM parameter. Must be JSON-encoded."
+  type        = string
+  sensitive   = true
 }
 
 variable "kms_key_arn" {
@@ -22,7 +22,7 @@ variable "kms_key_arn" {
 }
 
 variable "tags" {
-  description = "Common tags applied to the parameter. Merged with the default SSM tag."
+  description = "Tags applied to the S3 bucket (merged with Service=SSM)."
   type        = map(string)
   default     = {}
 }

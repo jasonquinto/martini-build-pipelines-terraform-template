@@ -1,31 +1,25 @@
 variable "role_name" {
-  description = "Name of the IAM role created for the CodeBuild project (e.g., martini-codebuild-role-dev)."
+  description = "IAM role name for the CodeBuild project."
   type        = string
 }
 
 variable "project_log_group_arn" {
-  description = "ARN of the CloudWatch Logs log group used by the CodeBuild project (from the cloudwatch module)."
+  description = "CloudWatch log group ARN used by CodeBuild."
   type        = string
 }
 
 variable "artifact_bucket_arn" {
-  description = "ARN of the S3 artifact bucket used for CodePipeline/CodeBuild artifacts."
+  description = "S3 artifact bucket arn used for CodePipeline/CodeBuild artifacts."
   type        = string
-}
-
-variable "artifact_object_prefix" {
-  description = "Optional object key prefix within the artifact bucket to further restrict S3 access (e.g., 'build/'). If null, access applies to the entire bucket."
-  type        = string
-  default     = null
 }
 
 variable "ssm_parameter_arn" {
-  description = "ARN of the single SSM SecureString parameter the build should read."
+  description = "SSM SecureString parameter arn the project should read."
   type        = string
 }
 
 variable "ecr_repo_arn" {
-  description = "Optional ARN of the ECR repository for push/pull permissions. If null, ECR permissions are omitted."
+  description = "ECR repository ARN for push/pull permissions. If null, ECR permissions are omitted."
   type        = string
   default     = null
 }
@@ -37,7 +31,7 @@ variable "kms_key_arns" {
 }
 
 variable "tags" {
-  description = "Key-value map of common tags to apply to the IAM role. Merged with default Service = 'CodeBuild'."
+  description = "Tags applied to the S3 bucket (merged with Service=Codebuild)."
   type        = map(string)
   default     = {}
 }
