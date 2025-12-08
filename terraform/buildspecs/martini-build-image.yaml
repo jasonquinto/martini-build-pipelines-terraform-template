@@ -20,7 +20,7 @@ phases:
   build:
     commands:
       - echo "Building Docker image for Martini version ${MARTINI_VERSION}..."
-      - docker build -f scripts/Dockerfile --build-arg MARTINI_VERSION="$MARTINI_VERSION" -t mr:"$MARTINI_VERSION" .
+      - docker build -f terraform/scripts/Dockerfile --build-arg MARTINI_VERSION="$MARTINI_VERSION" -t mr:"$MARTINI_VERSION" .
       - echo "Tagging image..."
       - docker tag mr:"$MARTINI_VERSION" "$ECR_REPO_URI:$MARTINI_VERSION"
 
