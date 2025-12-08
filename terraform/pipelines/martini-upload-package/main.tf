@@ -25,18 +25,8 @@ locals {
   codebuild_role_name    = "${local.resource_prefix}-codebuild-role"
   codepipeline_role_name = "${local.resource_prefix}-codepipeline-role"
 
+  ecr_repo_name      = local.resource_prefix
   ssm_parameter_name = "/martini/${local.environment}/${local.pipeline_name}"
-
-  # Conditional SSM value filtering
-  upload_package_ssm_value = merge(
-    {
-      base_url             = var.base_url
-      martini_access_token = var.martini_access_token
-    },
-    var.async_upload == null ? {} : { async_upload = var.async_upload },
-    var.success_check_delay == null ? {} : { success_check_delay = var.success_check_delay },
-    var.success_check_timeout == null ? {} : { success_check_timeout = var.success_check_timeout }
-  )
 
   common_tags = merge(
     var.tags,
@@ -80,10 +70,10 @@ module "pipeline_log_group" {
 
 module "artifact_bucket" {
 
-# checkov:skip=CKV_AWS_21: Versioning explicitly enabled via module configuration
-# checkov:skip=CKV_AWS_300: Abort multipart uploads configured via lifecycle_rule
-# checkov:skip=CKV2_AWS_6: S3 module v5.9.0 blocks public access by default
-# checkov:skip=CKV2_AWS_61: Lifecycle rules configured via lifecycle_rule
+  # checkov:skip=CKV_AWS_21: Versioning explicitly enabled via module configuration
+  # checkov:skip=CKV_AWS_300: Abort multipart uploads configured via lifecycle_rule
+  # checkov:skip=CKV2_AWS_6: S3 module v5.9.0 blocks public access by default
+  # checkov:skip=CKV2_AWS_61: Lifecycle rules configured via lifecycle_rule
 
   source  = "terraform-aws-modules/s3-bucket/aws"
   version = "5.9.0"
@@ -98,17 +88,30 @@ module "artifact_bucket" {
     {
       id      = "cleanup-artifacts"
       enabled = true
-      expiration = { days = 30 }
-      noncurrent_version_expiration = { days = 7 }
+
+      expiration = {
+        days = 30
+      }
+
+      noncurrent_version_expiration = {
+        noncurrent_days = 7
+      }
     },
     {
       id      = "abort-multipart"
       enabled = true
-      abort_incomplete_multipart_upload = { days_after_initiation = 1 }
+
+      expiration = {
+        expired_object_delete_marker = false
+      }
+
+      abort_incomplete_multipart_upload = {
+        days_after_initiation = 1
+      }
     }
   ]
 
-  # Only use CMK if provided; otherwise AWS default (AES256)
+  # If no CMK provided → AWS uses AES256 (default)
   server_side_encryption_configuration = var.kms_key_arn == null ? {} : {
     rule = {
       apply_server_side_encryption_by_default = {
@@ -122,23 +125,47 @@ module "artifact_bucket" {
 }
 
 #####################################
+# ECR Repository (Registry)
+#####################################
+
+module "ecr" {
+  source  = "terraform-aws-modules/ecr/aws"
+  version = "3.1.0"
+
+  repository_name               = local.ecr_repo_name
+  repository_image_scan_on_push = true
+
+  # Required for OpenTofu compatibility
+  create_lifecycle_policy = false
+
+  # KMS if provided → otherwise AES256
+  repository_encryption_type = var.kms_key_arn != null ? "KMS" : "AES256"
+  repository_kms_key         = var.kms_key_arn
+
+  tags = local.common_tags
+}
+
+#####################################
 # SSM Parameter (Registry)
 #####################################
 
-module "upload_package_parameter" {
+module "build_image_parameter" {
 
-# checkov:skip=CKV2_AWS_34: SecureString uses CMK when provided; AWS-managed KMS is acceptable when kms_key_arn is null
+  # checkov:skip=CKV2_AWS_34: SecureString uses CMK if provided; AWS-managed KMS acceptable
 
   source  = "terraform-aws-modules/ssm-parameter/aws"
   version = "2.0.1"
 
   name        = local.ssm_parameter_name
-  description = "Martini upload package configuration"
+  description = "Martini build image parameter"
 
   secure_type = true
   key_id      = var.kms_key_arn
 
-  value = jsonencode(local.upload_package_ssm_value)
+  value = jsonencode({
+    martini_version = var.martini_version
+    ecr_repo_name   = local.ecr_repo_name
+  })
 
   tags = local.common_tags
 }
@@ -153,8 +180,11 @@ module "iam_codebuild" {
   role_name             = local.codebuild_role_name
   project_log_group_arn = module.project_log_group.cloudwatch_log_group_arn
   artifact_bucket_arn   = module.artifact_bucket.s3_bucket_arn
-  ssm_parameter_arn     = module.upload_package_parameter.arn
-  ecr_repo_arn          = null
+
+  # FIXED OUTPUT NAME
+  ssm_parameter_arn     = module.build_image_parameter.arn
+
+  ecr_repo_arn          = module.ecr.repository_arn
   kms_key_arns          = var.kms_key_arn != null ? [var.kms_key_arn] : []
   tags                  = local.common_tags
 }
@@ -174,9 +204,9 @@ module "iam_codepipeline" {
 # CodeBuild Project
 #####################################
 
-resource "aws_codebuild_project" "martini_upload_package" {
+resource "aws_codebuild_project" "martini_build_image" {
   name          = local.resource_prefix
-  description   = "Uploads Martini packages to a Martini runtime server."
+  description   = "Builds Martini Docker images (ARM64) and pushes to ECR."
   service_role  = module.iam_codebuild.codebuild_role_arn
   build_timeout = 30
 
@@ -188,11 +218,21 @@ resource "aws_codebuild_project" "martini_upload_package" {
     compute_type                = "BUILD_GENERAL1_MEDIUM"
     image                       = "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
     type                        = "ARM_CONTAINER"
-    privileged_mode             = false
+    privileged_mode             = true
     image_pull_credentials_type = "CODEBUILD"
 
     environment_variable {
-      name  = "UPLOAD_PACKAGE_PARAMETER"
+      name  = "MARTINI_VERSION"
+      value = var.martini_version
+    }
+
+    environment_variable {
+      name  = "ECR_REPO_URI"
+      value = module.ecr.repository_url
+    }
+
+    environment_variable {
+      name  = "BUILD_IMAGE_PARAMETER"
       value = local.ssm_parameter_name
     }
   }
@@ -205,7 +245,7 @@ resource "aws_codebuild_project" "martini_upload_package" {
   logs_config {
     cloudwatch_logs {
       group_name  = module.project_log_group.cloudwatch_log_group_name
-      stream_name = "upload"
+      stream_name = "build"
     }
   }
 
@@ -216,7 +256,7 @@ resource "aws_codebuild_project" "martini_upload_package" {
 # CodePipeline
 #####################################
 
-resource "aws_codepipeline" "martini_upload_pipeline" {
+resource "aws_codepipeline" "martini_build_pipeline" {
   name     = local.resource_prefix
   role_arn = module.iam_codepipeline.codepipeline_role_arn
 
@@ -253,19 +293,19 @@ resource "aws_codepipeline" "martini_upload_pipeline" {
   }
 
   stage {
-    name = "Upload"
+    name = "Build"
 
     action {
-      name             = "UploadPackages"
+      name             = "BuildImage"
       category         = "Build"
       owner            = "AWS"
       provider         = "CodeBuild"
       version          = "1"
       input_artifacts  = ["source_output"]
-      output_artifacts = ["upload_output"]
+      output_artifacts = ["build_output"]
 
       configuration = {
-        ProjectName = aws_codebuild_project.martini_upload_package.name
+        ProjectName = aws_codebuild_project.martini_build_image.name
       }
     }
   }

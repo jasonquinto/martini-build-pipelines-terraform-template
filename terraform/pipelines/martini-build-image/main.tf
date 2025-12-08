@@ -97,12 +97,16 @@ module "artifact_bucket" {
     }
 
     noncurrent_version_expiration = {
-      days = 7
+      noncurrent_days = 7
     }
   },
   {
     id      = "abort-multipart"
     enabled = true
+
+    expiration = {
+      expired_object_delete_marker = false
+    }
 
     abort_incomplete_multipart_upload = {
       days_after_initiation = 1
@@ -132,6 +136,8 @@ module "ecr" {
 
   repository_name               = local.ecr_repo_name
   repository_image_scan_on_push = true
+
+  create_lifecycle_policy = false
 
   repository_encryption_type = var.kms_key_arn != null ? "KMS" : "AES256"
   repository_kms_key         = var.kms_key_arn
@@ -174,7 +180,7 @@ module "iam_codebuild" {
   role_name             = local.codebuild_role_name
   project_log_group_arn = module.project_log_group.cloudwatch_log_group_arn
   artifact_bucket_arn   = module.artifact_bucket.s3_bucket_arn
-  ssm_parameter_arn     = module.build_image_parameter.arn
+  ssm_parameter_arn     = module.build_image_parameter.ssm_parameter_arn
   ecr_repo_arn          = module.ecr.repository_arn
   kms_key_arns          = var.kms_key_arn != null ? [var.kms_key_arn] : []
   tags                  = local.common_tags
