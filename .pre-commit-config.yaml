@@ -24,7 +24,7 @@ repos:
           - --hook-config=--add-to-existing-file=true
 
   - repo: https://github.com/bridgecrewio/checkov
-    rev: 3.2.250
+    rev: 3.2.379
     hooks:
       - id: checkov
         name: checkov - IaC security checks

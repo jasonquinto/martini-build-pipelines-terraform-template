@@ -18,6 +18,7 @@ jobs:
       TOFU_VERSION: "1.10.7"
       TERRAFORM_DOCS_VERSION: "0.19.0"
       TOFU_ALLOW_UNSAFE_PLUGIN_DOWNLOADS: "1"
+      CHECKOV_VERSION: "3.2.379"
 
     steps:
       - name: Checkout Repository
@@ -56,7 +57,7 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y yamllint shellcheck shfmt
-          pip install checkov
+          pip install checkov==${{ env.CHECKOV_VERSION }}
 
       - name: Run Pre-Commit Hooks
         run: pre-commit run --all-files --show-diff-on-failure
