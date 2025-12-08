@@ -38,7 +38,7 @@ Other referenced files:
 
 ## Requirements
 
-- Terraform 1.3.0+
+- Opentofu 1.10.7+
 - AWS credentials with permission to create:
   - CodePipeline, CodeBuild, ECR, S3, SSM, CloudWatch, IAM
 - An existing CodeStar **connection ARN** to the GitHub repository containing this code.

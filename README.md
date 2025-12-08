@@ -1,174 +1,432 @@
-# Martini CI/CD Pipeline With AWS CodePipeline
+# terraform-docs
 
-This repository contains the full CI/CD implementation for Martini applications using **AWS CodePipeline**, **AWS CodeBuild**, and **Terraform**. It consolidates buildspecs, helper scripts, Terraform modules, and pipeline stacks into a single repository.
+[![Build Status](https://github.com/terraform-docs/terraform-docs/workflows/ci/badge.svg)](https://github.com/terraform-docs/terraform-docs/actions) [![GoDoc](https://pkg.go.dev/badge/github.com/terraform-docs/terraform-docs)](https://pkg.go.dev/github.com/terraform-docs/terraform-docs) [![Go Report Card](https://goreportcard.com/badge/github.com/terraform-docs/terraform-docs)](https://goreportcard.com/report/github.com/terraform-docs/terraform-docs) [![Codecov Report](https://codecov.io/gh/terraform-docs/terraform-docs/branch/master/graph/badge.svg)](https://codecov.io/gh/terraform-docs/terraform-docs) [![License](https://img.shields.io/github/license/terraform-docs/terraform-docs)](https://github.com/terraform-docs/terraform-docs/blob/master/LICENSE) [![Latest release](https://img.shields.io/github/v/release/terraform-docs/terraform-docs)](https://github.com/terraform-docs/terraform-docs/releases)
 
-There are two pipelines:
+![terraform-docs-teaser](./images/terraform-docs-teaser.png)
 
-1. **Build Martini Runtime Image** – builds a Docker image that bundles a specific Martini runtime version and one or more packages, and pushes it to Amazon ECR.
-2. **Upload Martini Packages** – zips one or more Martini packages from this repository and uploads them to a running Martini instance via the Martini API.
+## What is terraform-docs
 
----
+A utility to generate documentation from Terraform modules in various output formats.
 
-## Repository Structure
+## Installation
 
-```text
-.
-├── .github/
-│   └── workflows/
-│       └── precommit.yml        # GitHub Actions workflow to run pre-commit checks
-├── .pre-commit-config.yaml      # Local linting / formatting hooks
-├── packages/
-│   └── sample-package/          # Example Martini package layout
-│       ├── code/
-│       └── conf/
-├── terraform/
-│   ├── buildspecs/              # CodeBuild buildspec YAML files
-│   ├── modules/                 # Reusable Terraform modules (cloudwatch, ecr, iam, s3, ssm, etc.)
-│   ├── pipelines/
-│   │   ├── martini-build-image/ # Pipeline stack for building Docker images
-│   │   └── martini-upload-package/ # Pipeline stack for uploading packages
-│   └── scripts/                 # Supporting artifacts (Dockerfile, upload script)
-└── .yamllint                    # YAML linting config
+macOS users can install using [Homebrew]:
+
+```bash
+brew install terraform-docs
 ```
 
-- The **Terraform root** and **pipeline stacks** are documented under `terraform/README.md` and the two pipeline READMEs.
-- The **sample package** exists for testing only; it is not a production package.
+or
 
----
+```bash
+brew install terraform-docs/tap/terraform-docs
+```
 
-## Workflows
+Windows users can install using [Scoop]:
 
-### 1. Build Martini Runtime Image
+```bash
+scoop bucket add terraform-docs https://github.com/terraform-docs/scoop-bucket
+scoop install terraform-docs
+```
 
-The **martini-build-image** pipeline:
+or [Chocolatey]:
 
-- Uses `terraform/buildspecs/martini-build-image.yaml` as the buildspec.
-- Uses `terraform/scripts/dockerfile` to define the runtime image.
-- Checks out this GitHub repository via CodeStar Connections.
-- Invokes AWS CodeBuild to:
-  - Download Martini runtime (based on a configured version).
-  - Bundle one or more packages from `packages/`.
-  - Build and push an image to ECR.
-- Stores logs in CloudWatch and artifacts in S3.
+```bash
+choco install terraform-docs
+```
 
-### 2. Upload Martini Packages
+Stable binaries are also available on the [releases] page. To install, download the
+binary for your platform from "Assets" and place this into your `$PATH`:
 
-The **martini-upload-package** pipeline:
+```bash
+curl -Lo ./terraform-docs.tar.gz https://github.com/terraform-docs/terraform-docs/releases/download/v0.19.0/terraform-docs-v0.19.0-$(uname)-amd64.tar.gz
+tar -xzf terraform-docs.tar.gz
+chmod +x terraform-docs
+mv terraform-docs /usr/local/bin/terraform-docs
+```
 
-- Uses `terraform/buildspecs/martini-upload-package.yaml` as the buildspec.
-- Uses `terraform/scripts/upload_packages.sh` to:
-  - Zip packages from `packages/`.
-  - Filter packages with a regex (`PACKAGE_NAME_PATTERN`).
-  - Upload them to a remote Martini runtime (`BASE_URL`) via the API.
-  - Optionally poll for successful startup using configurable delay/timeout values.
-- Uses SSM Parameter Store to inject configuration and secrets into CodeBuild.
+**NOTE:** Windows releases are in `ZIP` format.
 
----
+The latest version can be installed using `go install` or `go get`:
 
-## Requirements
+```bash
+# go1.17+
+go install github.com/terraform-docs/terraform-docs@v0.19.0
+```
 
-- **Terraform**: v1.3.0+
-- **AWS**:
-  - AWS CLI configured with access to create CodePipeline, CodeBuild, ECR, S3, SSM, IAM, and CloudWatch.
-  - An AWS account and region where pipelines will run.
-- **GitHub**:
-  - A GitHub repository that will act as the **source** for the pipelines (usually this one).
-  - An AWS **CodeStar Connection ARN** to that GitHub repository (configured manually in the AWS console).
-- **Local tools** (for development):
-  - `pre-commit` installed.
-  - Python and any tools required by `.pre-commit-config.yaml`.
+```bash
+# go1.16
+GO111MODULE="on" go get github.com/terraform-docs/terraform-docs@v0.19.0
+```
 
----
+**NOTE:** please use the latest Go to do this, minimum `go1.16` is required.
 
-## Local Development Workflow
+This will put `terraform-docs` in `$(go env GOPATH)/bin`. If you encounter the error
+`terraform-docs: command not found` after installation then you may need to either add
+that directory to your `$PATH` as shown [here] or do a manual installation by cloning
+the repo and run `make build` from the repository which will put `terraform-docs` in:
 
-A typical flow when working with this repository:
+```bash
+$(go env GOPATH)/src/github.com/terraform-docs/terraform-docs/bin/$(uname | tr '[:upper:]' '[:lower:]')-amd64/terraform-docs
+```
 
-1. **Clone the repository**
-   ```bash
-   git clone <your-repo-url>
-   cd <repo>
-   ```
+## Usage
 
-2. **Install pre-commit hooks**
-   ```bash
-   pip install pre-commit
-   pre-commit install
-   ```
+### Running the binary directly
 
-3. **Run checks locally (optional but recommended)**
-   ```bash
-   pre-commit run --all-files
-   ```
+To run and generate documentation into README within a directory:
 
-4. **Configure variables for the pipeline stack(s)**
-   For each pipeline under `terraform/pipelines/...`, prepare:
-   - `terraform.tfvars` (or equivalent) with values such as:
-     - `repository_name`
-     - `branch_name`
-     - `connection_arn`
-     - `pipeline_name`
-     - `log_retention_days`
-     - Any workflow-specific settings.
+```bash
+terraform-docs markdown table --output-file README.md --output-mode inject /path/to/module
+```
 
-5. **Deploy a pipeline stack with Terraform**
-   Example for the upload-package pipeline:
-   ```bash
-   cd terraform/pipelines/martini-upload-package
+Check [`output`] configuration for more details and examples.
 
-   terraform init
-   terraform plan
-   terraform apply
-   ```
+### Using docker
 
-   Similarly, use `terraform/pipelines/martini-build-image` for the image build pipeline.
+terraform-docs can be run as a container by mounting a directory with `.tf`
+files in it and run the following command:
 
-6. **Trigger a pipeline run**
+```bash
+docker run --rm --volume "$(pwd):/terraform-docs" -u $(id -u) quay.io/terraform-docs/terraform-docs:0.19.0 markdown /terraform-docs
+```
 
-   Once the stack is applied:
-   - Push a commit to the configured GitHub branch, or
-   - Manually trigger the pipeline via the AWS console, or
-   - Use the AWS CLI:
-     ```bash
-     aws codepipeline start-pipeline-execution --name <pipeline-name>
-     ```
+If `output.file` is not enabled for this module, generated output can be redirected
+back to a file:
 
----
+```bash
+docker run --rm --volume "$(pwd):/terraform-docs" -u $(id -u) quay.io/terraform-docs/terraform-docs:0.19.0 markdown /terraform-docs > doc.md
+```
 
-## SSM Parameter Store Configuration
+**NOTE:** Docker tag `latest` refers to _latest_ stable released version and `edge`
+refers to HEAD of `master` at any given point in time.
 
-The pipelines rely on SSM Parameter Store to provide configuration to CodeBuild via a parameter that contains JSON.
+### Using GitHub Actions
 
-At a minimum, ensure the following keys exist in the JSON (for the upload pipeline):
+To use terraform-docs GitHub Action, configure a YAML workflow file (e.g.
+`.github/workflows/documentation.yml`) with the following:
 
-- `BASE_URL`
-- `MARTINI_ACCESS_TOKEN`
-- `PACKAGE_NAME_PATTERN` (optional)
-- `PACKAGE_DIR` (optional, defaults to `packages`)
-- `ASYNC_UPLOAD` (optional)
-- `SUCCESS_CHECK_TIMEOUT` (optional)
-- `SUCCESS_CHECK_DELAY` (optional)
-- `SUCCESS_CHECK_PACKAGE_NAME` (optional)
+```yaml
+name: Generate terraform docs
+on:
+  - pull_request
 
-The **upload pipeline module** exposes variables such as `parameter_name`, `package_dir`, `package_name_pattern`, `async_upload`, and polling-related settings to control this behaviour.
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.pull_request.head.ref }}
 
----
+    - name: Render terraform docs and push changes back to PR
+      uses: terraform-docs/gh-actions@main
+      with:
+        working-dir: .
+        output-file: README.md
+        output-method: inject
+        git-push: "true"
+```
 
-## GitHub Actions and pre-commit
+Read more about [terraform-docs GitHub Action] and its configuration and
+examples.
 
-- `.github/workflows/precommit.yml` runs the same checks defined in `.pre-commit-config.yaml` on each push or pull request.
-- Typical checks include:
-  - Terraform formatting / validation
-  - YAML linting
-  - Basic shell / code style checks (depending on configured hooks)
+### pre-commit hook
 
-This ensures changes to Terraform, buildspecs, and scripts remain consistent.
+With pre-commit, you can ensure your Terraform module documentation is kept
+up-to-date each time you make a commit.
 
----
+First [install pre-commit] and then create or update a `.pre-commit-config.yaml`
+in the root of your Git repo with at least the following content:
 
-## References
+```yaml
+repos:
+  - repo: https://github.com/terraform-docs/terraform-docs
+    rev: "v0.19.0"
+    hooks:
+      - id: terraform-docs-go
+        args: ["markdown", "table", "--output-file", "README.md", "./mymodule/path"]
+```
 
-- Martini Documentation
-- AWS CodePipeline Documentation
-- AWS CodeBuild Documentation
-- Terraform Documentation
+Then run:
+
+```bash
+pre-commit install
+pre-commit install-hooks
+```
+
+Further changes to your module's `.tf` files will cause an update to documentation
+when you make a commit.
+
+## Configuration
+
+terraform-docs can be configured with a yaml file. The default name of this file is
+`.terraform-docs.yml` and the path order for locating it is:
+
+1. root of module directory
+1. `.config/` folder at root of module directory
+1. current directory
+1. `.config/` folder at current directory
+1. `$HOME/.tfdocs.d/`
+
+```yaml
+formatter: "" # this is required
+
+version: ""
+
+header-from: main.tf
+footer-from: ""
+
+recursive:
+  enabled: false
+  path: modules
+  include-main: true
+
+sections:
+  hide: []
+  show: []
+
+content: ""
+
+output:
+  file: ""
+  mode: inject
+  template: |-
+    <!-- BEGIN_TF_DOCS -->
+    {{ .Content }}
+    <!-- END_TF_DOCS -->
+
+output-values:
+  enabled: false
+  from: ""
+
+sort:
+  enabled: true
+  by: name
+
+settings:
+  anchor: true
+  color: true
+  default: true
+  description: false
+  escape: true
+  hide-empty: false
+  html: true
+  indent: 2
+  lockfile: true
+  read-comments: true
+  required: true
+  sensitive: true
+  type: true
+```
+
+## Content Template
+
+Generated content can be customized further away with `content` in configuration.
+If the `content` is empty the default order of sections is used.
+
+Compatible formatters for customized content are `asciidoc` and `markdown`. `content`
+will be ignored for other formatters.
+
+`content` is a Go template with following additional variables:
+
+- `{{ .Header }}`
+- `{{ .Footer }}`
+- `{{ .Inputs }}`
+- `{{ .Modules }}`
+- `{{ .Outputs }}`
+- `{{ .Providers }}`
+- `{{ .Requirements }}`
+- `{{ .Resources }}`
+
+and following functions:
+
+- `{{ include "relative/path/to/file" }}`
+
+These variables are the generated output of individual sections in the selected
+formatter. For example `{{ .Inputs }}` is Markdown Table representation of _inputs_
+when formatter is set to `markdown table`.
+
+Note that sections visibility (i.e. `sections.show` and `sections.hide`) takes
+precedence over the `content`.
+
+Additionally there's also one extra special variable avaialble to the `content`:
+
+- `{{ .Module }}`
+
+As opposed to the other variables mentioned above, which are generated sections
+based on a selected formatter, the `{{ .Module }}` variable is just a `struct`
+representing a [Terraform module].
+
+````yaml
+content: |-
+  Any arbitrary text can be placed anywhere in the content
+
+  {{ .Header }}
+
+  and even in between sections
+
+  {{ .Providers }}
+
+  and they don't even need to be in the default order
+
+  {{ .Outputs }}
+
+  include any relative files
+
+  {{ include "relative/path/to/file" }}
+
+  {{ .Inputs }}
+
+  # Examples
+
+  ```hcl
+  {{ include "examples/foo/main.tf" }}
+  ```
+
+  ## Resources
+
+  {{ range .Module.Resources }}
+  - {{ .GetMode }}.{{ .Spec }} ({{ .Position.Filename }}#{{ .Position.Line }})
+  {{- end }}
+````
+
+## Build on top of terraform-docs
+
+terraform-docs primary use-case is to be utilized as a standalone binary, but
+some parts of it is also available publicly and can be imported in your project
+as a library.
+
+```go
+import (
+    "github.com/terraform-docs/terraform-docs/format"
+    "github.com/terraform-docs/terraform-docs/print"
+    "github.com/terraform-docs/terraform-docs/terraform"
+)
+
+// buildTerraformDocs for module root `path` and provided content `tmpl`.
+func buildTerraformDocs(path string, tmpl string) (string, error) {
+    config := print.DefaultConfig()
+    config.ModuleRoot = path // module root path (can be relative or absolute)
+
+    module, err := terraform.LoadWithOptions(config)
+    if err != nil {
+        return "", err
+    }
+
+    // Generate in Markdown Table format
+    formatter := format.NewMarkdownTable(config)
+
+    if err := formatter.Generate(module); err != nil {
+        return "", err
+    }
+
+    // // Note: if you don't intend to provide additional template for the generated
+    // // content, or the target format doesn't provide templating (e.g. json, yaml,
+    // // xml, or toml) you can use `Content()` function instead of `Render()`.
+    // // `Content()` returns all the sections combined with predefined order.
+    // return formatter.Content(), nil
+
+    return formatter.Render(tmpl)
+}
+```
+
+## Plugin
+
+Generated output can be heavily customized with [`content`], but if using that
+is not enough for your use-case, you can write your own plugin.
+
+In order to install a plugin the following steps are needed:
+
+- download the plugin and place it in `~/.tfdocs.d/plugins` (or `./.tfdocs.d/plugins`)
+- make sure the plugin file name is `tfdocs-format-<NAME>`
+- modify [`formatter`] of `.terraform-docs.yml` file to be `<NAME>`
+
+**Important notes:**
+
+- if the plugin file name is different than the example above, terraform-docs won't
+be able to to pick it up nor register it properly
+- you can only use plugin thorough `.terraform-docs.yml` file and it cannot be used
+with CLI arguments
+
+To create a new plugin create a new repository called `tfdocs-format-<NAME>` with
+following `main.go`:
+
+```go
+package main
+
+import (
+    _ "embed" //nolint
+
+    "github.com/terraform-docs/terraform-docs/plugin"
+    "github.com/terraform-docs/terraform-docs/print"
+    "github.com/terraform-docs/terraform-docs/template"
+    "github.com/terraform-docs/terraform-docs/terraform"
+)
+
+func main() {
+    plugin.Serve(&plugin.ServeOpts{
+        Name:    "<NAME>",
+        Version: "0.1.0",
+        Printer: printerFunc,
+    })
+}
+
+//go:embed sections.tmpl
+var tplCustom []byte
+
+// printerFunc the function being executed by the plugin client.
+func printerFunc(config *print.Config, module *terraform.Module) (string, error) {
+    tpl := template.New(config,
+        &template.Item{Name: "custom", Text: string(tplCustom)},
+    )
+
+    rendered, err := tpl.Render("custom", module)
+    if err != nil {
+        return "", err
+    }
+
+    return rendered, nil
+}
+```
+
+Please refer to [tfdocs-format-template] for more details. You can create a new
+repository from it by clicking on `Use this template` button.
+
+## Documentation
+
+- **Users**
+  - Read the [User Guide] to learn how to use terraform-docs
+  - Read the [Formats Guide] to learn about different output formats of terraform-docs
+  - Refer to [Config File Reference] for all the available configuration options
+- **Developers**
+  - Read [Contributing Guide] before submitting a pull request
+
+Visit [our website] for all documentation.
+
+## Community
+
+- Discuss terraform-docs on [Slack]
+
+## License
+
+MIT License - Copyright (c) 2021 The terraform-docs Authors.
+
+[Chocolatey]: https://www.chocolatey.org
+[Config File Reference]: https://terraform-docs.io/user-guide/configuration/
+[`content`]: https://terraform-docs.io/user-guide/configuration/content/
+[Contributing Guide]: CONTRIBUTING.md
+[Formats Guide]: https://terraform-docs.io/reference/terraform-docs/
+[`formatter`]: https://terraform-docs.io/user-guide/configuration/formatter/
+[here]: https://golang.org/doc/code.html#GOPATH
+[Homebrew]: https://brew.sh
+[install pre-commit]: https://pre-commit.com/#install
+[`output`]: https://terraform-docs.io/user-guide/configuration/output/
+[releases]: https://github.com/terraform-docs/terraform-docs/releases
+[Scoop]: https://scoop.sh/
+[Slack]: https://slack.terraform-docs.io/
+[terraform-docs GitHub Action]: https://github.com/terraform-docs/gh-actions
+[Terraform module]: https://pkg.go.dev/github.com/terraform-docs/terraform-docs/terraform#Module
+[tfdocs-format-template]: https://github.com/terraform-docs/tfdocs-format-template
+[our website]: https://terraform-docs.io/
+[User Guide]: https://terraform-docs.io/user-guide/introduction/

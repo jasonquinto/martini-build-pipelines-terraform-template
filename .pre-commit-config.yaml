@@ -1,37 +1,37 @@
 repos:
-  # Terraform Hooks
-  - repo: https://github.com/antonbabenko/pre-commit-terraform
-    rev: v1.103.0
+  - repo: https://github.com/tofuutils/pre-commit-opentofu
+    rev: v1.0.2
     hooks:
-      - id: terraform_fmt
-        always_run: true
-        pass_filenames: false
-        files: ^terraform/.*\.tf$
-
-      - id: terraform_validate
+      - id: tofu_fmt
         always_run: true
         pass_filenames: false
         files: ^terraform/.*\.tf$
         args:
-          - --init-args=-lockfile=readonly
-          - --args=-json
-          - --args=-no-color
+          - --args=-check
 
-      - id: terraform_docs
+      - id: tofu_validate
+        always_run: true
+        pass_filenames: false
+        files: ^terraform/.*\.tf$
+        args:
+          - --args=-init
+
+      - id: tofu_docs
         always_run: true
         pass_filenames: false
         files: ^terraform/.*
         args:
           - --hook-config=--add-to-existing-file=true
 
-      - id: terraform_checkov
-        always_run: true
+  - repo: https://github.com/bridgecrewio/checkov
+    rev: 3.2.250
+    hooks:
+      - id: checkov
+        name: checkov - IaC security checks
         pass_filenames: false
-        files: ^terraform/.*
         args:
-          - --args=--directory=terraform
-          - --args=--config-file=.checkov.yaml
-          - --args=--quiet
+          - --directory=terraform
+          - --config-file=.checkov.yaml
 
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.33.0

@@ -14,15 +14,29 @@ provider "aws" {
 }
 
 locals {
-  environment             = var.environment
-  pipeline_name           = var.pipeline_name
-  resource_prefix         = "${local.environment}-${local.pipeline_name}"
+  environment       = var.environment
+  pipeline_name     = var.pipeline_name
+  resource_prefix   = "${local.environment}-${local.pipeline_name}"
+
   project_log_group_name  = "/aws/codebuild/${local.resource_prefix}"
   pipeline_log_group_name = "/aws/codepipeline/${local.resource_prefix}"
-  artifact_bucket_name    = "${local.resource_prefix}-artifacts"
-  codebuild_role_name     = "${local.resource_prefix}-codebuild-role"
-  codepipeline_role_name  = "${local.resource_prefix}-codepipeline-role"
-  ssm_parameter_name      = "/martini/${local.environment}/${local.pipeline_name}"
+
+  artifact_bucket_name   = "${local.resource_prefix}-artifacts"
+  codebuild_role_name    = "${local.resource_prefix}-codebuild-role"
+  codepipeline_role_name = "${local.resource_prefix}-codepipeline-role"
+
+  ssm_parameter_name = "/martini/${local.environment}/${local.pipeline_name}"
+
+  # Conditional SSM value filtering
+  upload_package_ssm_value = merge(
+    {
+      base_url             = var.base_url
+      martini_access_token = var.martini_access_token
+    },
+    var.async_upload == null ? {} : { async_upload = var.async_upload },
+    var.success_check_delay == null ? {} : { success_check_delay = var.success_check_delay },
+    var.success_check_timeout == null ? {} : { success_check_timeout = var.success_check_timeout }
+  )
 
   common_tags = merge(
     var.tags,
@@ -34,64 +48,131 @@ locals {
   )
 }
 
-module "cloudwatch" {
-  source = "../modules/cloudwatch"
+#####################################
+# CloudWatch Log Groups (Registry)
+#####################################
 
-  project_log_group_name  = local.project_log_group_name
-  pipeline_log_group_name = local.pipeline_log_group_name
-  log_retention_days      = var.log_retention_days
-  kms_key_arn             = var.kms_key_arn
-  tags                    = local.common_tags
+module "project_log_group" {
+  source  = "terraform-aws-modules/cloudwatch/aws//modules/log-group"
+  version = "5.7.2"
+
+  name              = local.project_log_group_name
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_arn
+
+  tags = merge({ Service = "CodeBuild" }, local.common_tags)
 }
 
-module "s3" {
-  source = "../modules/s3"
+module "pipeline_log_group" {
+  source  = "terraform-aws-modules/cloudwatch/aws//modules/log-group"
+  version = "5.7.2"
 
-  bucket_name   = local.artifact_bucket_name
-  kms_key_arn   = var.kms_key_arn
-  tags          = local.common_tags
+  name              = local.pipeline_log_group_name
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_arn
+
+  tags = merge({ Service = "CodePipeline" }, local.common_tags)
 }
 
-module "ssm" {
-  source = "../modules/ssm"
+#####################################
+# S3 Artifact Bucket (Registry)
+#####################################
 
-  parameter_name        = local.ssm_parameter_name
-  parameter_description = "Martini upload package parameter"
+module "artifact_bucket" {
 
-  parameter_value = jsonencode({
-    base_url              = var.base_url
-    martini_access_token  = var.martini_access_token
-    async_upload          = var.async_upload
-    success_check_delay   = var.success_check_delay
-    success_check_timeout = var.success_check_timeout
-  })
+# checkov:skip=CKV_AWS_21: Versioning explicitly enabled via module configuration
+# checkov:skip=CKV_AWS_300: Abort multipart uploads configured via lifecycle_rule
+# checkov:skip=CKV2_AWS_6: S3 module v5.9.0 blocks public access by default
+# checkov:skip=CKV2_AWS_61: Lifecycle rules configured via lifecycle_rule
 
-  kms_key_arn = var.kms_key_arn
-  tags        = local.common_tags
+  source  = "terraform-aws-modules/s3-bucket/aws"
+  version = "5.9.0"
+
+  bucket = local.artifact_bucket_name
+
+  versioning = {
+    enabled = true
+  }
+
+  lifecycle_rule = [
+    {
+      id      = "cleanup-artifacts"
+      enabled = true
+      expiration = { days = 30 }
+      noncurrent_version_expiration = { days = 7 }
+    },
+    {
+      id      = "abort-multipart"
+      enabled = true
+      abort_incomplete_multipart_upload = { days_after_initiation = 1 }
+    }
+  ]
+
+  # Only use CMK if provided; otherwise AWS default (AES256)
+  server_side_encryption_configuration = var.kms_key_arn == null ? {} : {
+    rule = {
+      apply_server_side_encryption_by_default = {
+        kms_master_key_id = var.kms_key_arn
+        sse_algorithm     = "aws:kms"
+      }
+    }
+  }
+
+  tags = local.common_tags
 }
+
+#####################################
+# SSM Parameter (Registry)
+#####################################
+
+module "upload_package_parameter" {
+
+# checkov:skip=CKV2_AWS_34: SecureString uses CMK when provided; AWS-managed KMS is acceptable when kms_key_arn is null
+
+  source  = "terraform-aws-modules/ssm-parameter/aws"
+  version = "2.0.1"
+
+  name        = local.ssm_parameter_name
+  description = "Martini upload package configuration"
+
+  secure_type = true
+  key_id      = var.kms_key_arn
+
+  value = jsonencode(local.upload_package_ssm_value)
+
+  tags = local.common_tags
+}
+
+#####################################
+# IAM Modules
+#####################################
 
 module "iam_codebuild" {
-  source = "../modules/iam_codebuild"
+  source = "../../modules/iam_codebuild"
 
   role_name             = local.codebuild_role_name
-  project_log_group_arn = module.cloudwatch.project_log_group_arn
-  artifact_bucket_arn   = module.s3.artifact_bucket_arn
-  ssm_parameter_arn     = module.ssm.ssm_parameter_arn
+  project_log_group_arn = module.project_log_group.cloudwatch_log_group_arn
+  artifact_bucket_arn   = module.artifact_bucket.s3_bucket_arn
+  ssm_parameter_arn     = module.upload_package_parameter.arn
   ecr_repo_arn          = null
   kms_key_arns          = var.kms_key_arn != null ? [var.kms_key_arn] : []
   tags                  = local.common_tags
 }
 
 module "iam_codepipeline" {
-  source = "../modules/iam_codepipeline"
+  source = "../../modules/iam_codepipeline"
 
-  role_name             = local.codepipeline_role_name
-  artifact_bucket_arn     = module.s3.artifact_bucket_arn
+  role_name               = local.codepipeline_role_name
+  artifact_bucket_arn     = module.artifact_bucket.s3_bucket_arn
   codebuild_role_arn      = module.iam_codebuild.codebuild_role_arn
   codestar_connection_arn = var.codestar_connection_arn
   kms_key_arns            = var.kms_key_arn != null ? [var.kms_key_arn] : []
   tags                    = local.common_tags
 }
+
+#####################################
+# CodeBuild Project
+#####################################
 
 resource "aws_codebuild_project" "martini_upload_package" {
   name          = local.resource_prefix
@@ -111,18 +192,8 @@ resource "aws_codebuild_project" "martini_upload_package" {
     image_pull_credentials_type = "CODEBUILD"
 
     environment_variable {
-      name  = "MARTINI_BASE_URL"
-      value = var.base_url
-    }
-
-    environment_variable {
-      name  = "PARAMETER_NAME"
-      value = module.ssm.ssm_parameter_name
-    }
-
-    environment_variable {
-      name  = "ASYNC_UPLOAD"
-      value = tostring(var.async_upload)
+      name  = "UPLOAD_PACKAGE_PARAMETER"
+      value = local.ssm_parameter_name
     }
   }
 
@@ -133,7 +204,7 @@ resource "aws_codebuild_project" "martini_upload_package" {
 
   logs_config {
     cloudwatch_logs {
-      group_name  = module.cloudwatch.project_log_group_name
+      group_name  = module.project_log_group.cloudwatch_log_group_name
       stream_name = "upload"
     }
   }
@@ -141,12 +212,16 @@ resource "aws_codebuild_project" "martini_upload_package" {
   tags = local.common_tags
 }
 
+#####################################
+# CodePipeline
+#####################################
+
 resource "aws_codepipeline" "martini_upload_pipeline" {
   name     = local.resource_prefix
   role_arn = module.iam_codepipeline.codepipeline_role_arn
 
   artifact_store {
-    location = module.s3.artifact_bucket_name
+    location = module.artifact_bucket.s3_bucket_id
     type     = "S3"
 
     dynamic "encryption_key" {
