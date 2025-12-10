@@ -14,11 +14,11 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      PYTHON_VERSION: "3.14"
-      TOFU_VERSION: "1.10.7"
+      PYTHON_VERSION: "3.13"
+      TOFU_VERSION: "1.11"
       TERRAFORM_DOCS_VERSION: "0.19.0"
       TOFU_ALLOW_UNSAFE_PLUGIN_DOWNLOADS: "1"
-      CHECKOV_VERSION: "3.2.379"
+      CHECKOV_VERSION: "3.2.475"
 
     steps:
       - name: Checkout Repository
