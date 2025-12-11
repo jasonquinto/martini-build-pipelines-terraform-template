@@ -11,6 +11,17 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+
+  default_tags {
+    tags = merge(
+      var.tags,
+      {
+        Project     = "Martini"
+        Environment = var.environment
+        Owner       = "Lonti"
+      }
+    )
+  }
 }
 
 locals {
@@ -27,20 +38,7 @@ locals {
 
   ecr_repo_name      = local.resource_prefix
   ssm_parameter_name = "/martini/${local.environment}/${local.pipeline_name}"
-
-  common_tags = merge(
-    var.tags,
-    {
-      Project     = "Martini"
-      Environment = local.environment
-      Owner       = "Lonti"
-    }
-  )
 }
-
-#####################################
-# CloudWatch Log Groups (Registry)
-#####################################
 
 module "project_log_group" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/log-group"
@@ -49,8 +47,6 @@ module "project_log_group" {
   name              = local.project_log_group_name
   retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn
-
-  tags = merge({ Service = "CodeBuild" }, local.common_tags)
 }
 
 module "pipeline_log_group" {
@@ -60,20 +56,14 @@ module "pipeline_log_group" {
   name              = local.pipeline_log_group_name
   retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn
-
-  tags = merge({ Service = "CodePipeline" }, local.common_tags)
 }
-
-#####################################
-# S3 Artifact Bucket (Registry)
-#####################################
 
 module "artifact_bucket" {
 
   # checkov:skip=CKV_AWS_21: Versioning explicitly enabled via module configuration
   # checkov:skip=CKV_AWS_300: Abort multipart uploads configured via lifecycle_rule
-  # checkov:skip=CKV2_AWS_6: S3 module v5.9.0 blocks public access by default
-  # checkov:skip=CKV2_AWS_61: Lifecycle rules configured via lifecycle_rule
+  # checkov:skip=CKV2_AWS_6: S3 module blocks public access by default
+  # checkov:skip=CKV2_AWS_61: Lifecycle rules configured
 
   source  = "terraform-aws-modules/s3-bucket/aws"
   version = "5.9.0"
@@ -111,7 +101,6 @@ module "artifact_bucket" {
     }
   ]
 
-  # If no CMK provided → AWS uses AES256 (default)
   server_side_encryption_configuration = var.kms_key_arn == null ? {} : {
     rule = {
       apply_server_side_encryption_by_default = {
@@ -120,13 +109,7 @@ module "artifact_bucket" {
       }
     }
   }
-
-  tags = local.common_tags
 }
-
-#####################################
-# ECR Repository (Registry)
-#####################################
 
 module "ecr" {
   source  = "terraform-aws-modules/ecr/aws"
@@ -135,23 +118,15 @@ module "ecr" {
   repository_name               = local.ecr_repo_name
   repository_image_scan_on_push = true
 
-  # Required for OpenTofu compatibility
   create_lifecycle_policy = false
 
-  # KMS if provided → otherwise AES256
   repository_encryption_type = var.kms_key_arn != null ? "KMS" : "AES256"
   repository_kms_key         = var.kms_key_arn
-
-  tags = local.common_tags
 }
-
-#####################################
-# SSM Parameter (Registry)
-#####################################
 
 module "build_image_parameter" {
 
-  # checkov:skip=CKV2_AWS_34: SecureString uses CMK if provided; AWS-managed KMS acceptable
+  # checkov:skip=CKV2_AWS_34
 
   source  = "terraform-aws-modules/ssm-parameter/aws"
   version = "2.0.1"
@@ -166,13 +141,7 @@ module "build_image_parameter" {
     martini_version = var.martini_version
     ecr_repo_name   = local.ecr_repo_name
   })
-
-  tags = local.common_tags
 }
-
-#####################################
-# IAM Modules
-#####################################
 
 module "iam_codebuild" {
   source = "../../modules/iam_codebuild"
@@ -180,13 +149,9 @@ module "iam_codebuild" {
   role_name             = local.codebuild_role_name
   project_log_group_arn = module.project_log_group.cloudwatch_log_group_arn
   artifact_bucket_arn   = module.artifact_bucket.s3_bucket_arn
-
-  # FIXED OUTPUT NAME
   ssm_parameter_arn     = module.build_image_parameter.arn
-
   ecr_repo_arn          = module.ecr.repository_arn
   kms_key_arns          = var.kms_key_arn != null ? [var.kms_key_arn] : []
-  tags                  = local.common_tags
 }
 
 module "iam_codepipeline" {
@@ -197,16 +162,11 @@ module "iam_codepipeline" {
   codebuild_role_arn      = module.iam_codebuild.codebuild_role_arn
   codestar_connection_arn = var.codestar_connection_arn
   kms_key_arns            = var.kms_key_arn != null ? [var.kms_key_arn] : []
-  tags                    = local.common_tags
 }
-
-#####################################
-# CodeBuild Project
-#####################################
 
 resource "aws_codebuild_project" "martini_build_image" {
   name          = local.resource_prefix
-  description   = "Builds Martini Docker images (ARM64) and pushes to ECR."
+  description   = "Builds Martini packages and uploads them."
   service_role  = module.iam_codebuild.codebuild_role_arn
   build_timeout = 30
 
@@ -248,13 +208,7 @@ resource "aws_codebuild_project" "martini_build_image" {
       stream_name = "build"
     }
   }
-
-  tags = local.common_tags
 }
-
-#####################################
-# CodePipeline
-#####################################
 
 resource "aws_codepipeline" "martini_build_pipeline" {
   name     = local.resource_prefix
@@ -309,6 +263,4 @@ resource "aws_codepipeline" "martini_build_pipeline" {
       }
     }
   }
-
-  tags = local.common_tags
 }

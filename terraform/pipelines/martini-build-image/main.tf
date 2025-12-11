@@ -11,6 +11,17 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+
+  default_tags {
+    tags = merge(
+      var.tags,
+      {
+        Project     = "Martini"
+        Environment = var.environment
+        Owner       = "Lonti"
+      }
+    )
+  }
 }
 
 locals {
@@ -27,20 +38,7 @@ locals {
 
   ecr_repo_name      = local.resource_prefix
   ssm_parameter_name = "/martini/${local.environment}/${local.pipeline_name}"
-
-  common_tags = merge(
-    var.tags,
-    {
-      Project     = "Martini"
-      Environment = local.environment
-      Owner       = "Lonti"
-    }
-  )
 }
-
-#####################################
-# CloudWatch Log Groups (Registry)
-#####################################
 
 module "project_log_group" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/log-group"
@@ -49,11 +47,6 @@ module "project_log_group" {
   name              = local.project_log_group_name
   retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn
-
-  tags = merge(
-    { Service = "CodeBuild" },
-    local.common_tags
-  )
 }
 
 module "pipeline_log_group" {
@@ -63,20 +56,11 @@ module "pipeline_log_group" {
   name              = local.pipeline_log_group_name
   retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn
-
-  tags = merge(
-    { Service = "CodePipeline" },
-    local.common_tags
-  )
 }
-
-#####################################
-# S3 Artifact Bucket (Registry)
-#####################################
 
 module "artifact_bucket" {
 
-# checkov:skip=CKV_AWS_300: Abort multipart uploads configured via lifecycle_rule
+  # checkov:skip=CKV_AWS_300: Abort multipart uploads configured via lifecycle_rule
 
   source  = "terraform-aws-modules/s3-bucket/aws"
   version = "5.9.0"
@@ -88,31 +72,31 @@ module "artifact_bucket" {
   }
 
   lifecycle_rule = [
-  {
-    id      = "cleanup-artifacts"
-    enabled = true
+    {
+      id      = "cleanup-artifacts"
+      enabled = true
 
-    expiration = {
-      days = 30
-    }
+      expiration = {
+        days = 30
+      }
 
-    noncurrent_version_expiration = {
-      noncurrent_days = 7
-    }
-  },
-  {
-    id      = "abort-multipart"
-    enabled = true
+      noncurrent_version_expiration = {
+        noncurrent_days = 7
+      }
+    },
+    {
+      id      = "abort-multipart"
+      enabled = true
 
-    expiration = {
-      expired_object_delete_marker = false
-    }
+      expiration = {
+        expired_object_delete_marker = false
+      }
 
-    abort_incomplete_multipart_upload = {
-      days_after_initiation = 1
+      abort_incomplete_multipart_upload = {
+        days_after_initiation = 1
+      }
     }
-  }
-]
+  ]
 
   server_side_encryption_configuration = var.kms_key_arn == null ? {} : {
     rule = {
@@ -122,13 +106,7 @@ module "artifact_bucket" {
       }
     }
   }
-
-  tags = local.common_tags
 }
-
-#####################################
-# ECR Repository (Registry)
-#####################################
 
 module "ecr" {
   source  = "terraform-aws-modules/ecr/aws"
@@ -141,17 +119,11 @@ module "ecr" {
 
   repository_encryption_type = var.kms_key_arn != null ? "KMS" : "AES256"
   repository_kms_key         = var.kms_key_arn
-
-  tags = local.common_tags
 }
-
-#####################################
-# SSM Parameter (Registry)
-#####################################
 
 module "build_image_parameter" {
 
-# checkov:skip=CKV2_AWS_34: SecureString uses CMK when provided; AWS-managed KMS is acceptable when kms_key_arn is null
+  # checkov:skip=CKV2_AWS_34
 
   source  = "terraform-aws-modules/ssm-parameter/aws"
   version = "2.0.1"
@@ -166,13 +138,7 @@ module "build_image_parameter" {
     martini_version = var.martini_version
     ecr_repo_name   = local.ecr_repo_name
   })
-
-  tags = local.common_tags
 }
-
-#####################################
-# IAM Modules
-#####################################
 
 module "iam_codebuild" {
   source = "../../modules/iam_codebuild"
@@ -183,7 +149,6 @@ module "iam_codebuild" {
   ssm_parameter_arn     = module.build_image_parameter.ssm_parameter_arn
   ecr_repo_arn          = module.ecr.repository_arn
   kms_key_arns          = var.kms_key_arn != null ? [var.kms_key_arn] : []
-  tags                  = local.common_tags
 }
 
 module "iam_codepipeline" {
@@ -194,12 +159,7 @@ module "iam_codepipeline" {
   codebuild_role_arn      = module.iam_codebuild.codebuild_role_arn
   codestar_connection_arn = var.codestar_connection_arn
   kms_key_arns            = var.kms_key_arn != null ? [var.kms_key_arn] : []
-  tags                    = local.common_tags
 }
-
-#####################################
-# CodeBuild Project
-#####################################
 
 resource "aws_codebuild_project" "martini_build_image" {
   name          = local.resource_prefix
@@ -228,7 +188,6 @@ resource "aws_codebuild_project" "martini_build_image" {
       value = module.ecr.repository_url
     }
 
-    # UPDATED: BUILD_IMAGE_PARAMETER replaces PARAMETER_NAME
     environment_variable {
       name  = "BUILD_IMAGE_PARAMETER"
       value = local.ssm_parameter_name
@@ -246,13 +205,7 @@ resource "aws_codebuild_project" "martini_build_image" {
       stream_name = "build"
     }
   }
-
-  tags = local.common_tags
 }
-
-#####################################
-# CodePipeline
-#####################################
 
 resource "aws_codepipeline" "martini_build_pipeline" {
   name     = local.resource_prefix
@@ -307,6 +260,4 @@ resource "aws_codepipeline" "martini_build_pipeline" {
       }
     }
   }
-
-  tags = local.common_tags
 }
