@@ -19,7 +19,7 @@ phases:
       - export SUCCESS_CHECK_DELAY=$(echo "$PARAMETER" | jq -r '.success_check_delay // empty')
       - export SUCCESS_CHECK_TIMEOUT=$(echo "$PARAMETER" | jq -r '.success_check_timeout // empty')
 
-      - "missing=0; for var in UPLOAD_PACKAGE_PARAMETER BASE_URL MARTINI_ACCESS_TOKENACCESS_TOKEN; do if [ -z \"${!var}\" ]; then echo \"ERROR: $var is missing\"; missing=1; fi; done; if [ \"$missing\" = \"1\" ]; then exit 1; fi"
+      - "missing=0; for var in UPLOAD_PACKAGE_PARAMETER BASE_URL MARTINI_ACCESS_TOKEN ACCESS_TOKEN; do if [ -z \"${!var}\" ]; then echo \"ERROR: $var is missing\"; missing=1; fi; done; if [ \"$missing\" = \"1\" ]; then exit 1; fi"
 
   build:
     commands:
