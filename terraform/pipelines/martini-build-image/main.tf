@@ -30,7 +30,6 @@ locals {
   resource_prefix   = "${local.environment}-${local.pipeline_name}"
 
   project_log_group_name  = "/aws/codebuild/${local.resource_prefix}"
-  pipeline_log_group_name = "/aws/codepipeline/${local.resource_prefix}"
 
   artifact_bucket_name   = "${local.resource_prefix}-artifacts"
   codebuild_role_name    = "${local.resource_prefix}-codebuild-role"
@@ -47,17 +46,6 @@ module "project_log_group" {
   version = "~> 5.0"
 
   name              = local.project_log_group_name
-  retention_in_days = var.log_retention_days
-  kms_key_id        = var.kms_key_arn
-}
-
-module "pipeline_log_group" {
-  # checkov:skip=CKV_AWS_338: Shorter log retention acceptable for pipeline logs
-
-  source  = "terraform-aws-modules/cloudwatch/aws//modules/log-group"
-  version = "~> 5.0"
-
-  name              = local.pipeline_log_group_name
   retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn
 }
